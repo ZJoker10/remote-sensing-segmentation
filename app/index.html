@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Remote Sensing Segmentation</title>
+<style>
+  :root {
+    --bg: #0b1020;
+    --panel: #141a2e;
+    --panel-2: #1b2340;
+    --line: #2a3357;
+    --text: #e6ebff;
+    --muted: #8b96bb;
+    --accent: #00e0b8;
+    --accent-2: #7c8cff;
+    --danger: #ff5b7f;
+    --warn: #ffcf8a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: radial-gradient(1200px 600px at 20% -10%, #16204a 0%, var(--bg) 55%);
+    color: var(--text);
+    font: 15px/1.5 "Segoe UI", system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+  }
+  header.top {
+    padding: 28px 32px 18px;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  header.top h1 { margin: 0; font-size: 21px; font-weight: 650; letter-spacing: .2px; }
+  header.top .sub { color: var(--muted); font-size: 13px; }
+  .pill {
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--muted);
+    border: 1px solid var(--line);
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: var(--panel);
+  }
+  main {
+    padding: 24px 32px 60px;
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 18px;
+  }
+  .card h2 {
+    margin: 0 0 14px;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: .9px;
+    color: var(--muted);
+    font-weight: 600;
+  }
+
+  label.field { display: block; margin-bottom: 14px; }
+  label.field span {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12.5px;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  label.field span b { color: var(--text); font-weight: 600; }
+  select, input[type=number], input[type=text], input[type=datetime-local] {
+    width: 100%;
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 9px 10px;
+    font: inherit;
+    font-size: 14px;
+  }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  .hint { font-size: 12px; color: var(--muted); margin: -6px 0 14px; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .row2 label.field { margin-bottom: 10px; }
+
+  #dropzone {
+    border: 2px dashed var(--line);
+    border-radius: 16px;
+    padding: 46px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: .18s;
+    background: var(--panel);
+  }
+  #dropzone.hover { border-color: var(--accent); background: #12213a; }
+  #dropzone strong { display: block; font-size: 16px; margin-bottom: 6px; }
+  #dropzone small { color: var(--muted); }
+
+  .thumbs { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+  .thumb {
+    position: relative;
+    width: 104px; height: 104px;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    background: #0d1324;
+  }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .thumb button {
+    position: absolute; top: 3px; right: 3px;
+    width: 20px; height: 20px; line-height: 1;
+    border: 0; border-radius: 50%;
+    background: rgba(0,0,0,.65); color: #fff;
+    cursor: pointer; font-size: 13px;
+  }
+  .thumb .nm {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    font-size: 9.5px; padding: 2px 4px;
+    background: rgba(0,0,0,.62);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+
+  button.primary {
+    width: 100%;
+    margin-top: 16px;
+    padding: 12px;
+    border: 0;
+    border-radius: 10px;
+    background: linear-gradient(135deg, var(--accent), #14b8d8);
+    color: #04202a;
+    font: inherit;
+    font-weight: 700;
+    font-size: 15px;
+    cursor: pointer;
+  }
+  button.primary:disabled { opacity: .45; cursor: not-allowed; }
+  #status { margin-top: 12px; font-size: 13px; color: var(--muted); min-height: 20px; }
+  #status.error { color: var(--danger); }
+
+  details.panel {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin-bottom: 14px;
+    background: var(--panel-2);
+  }
+  details.panel summary {
+    cursor: pointer; font-size: 13px; color: var(--text); font-weight: 600;
+  }
+  details.panel .body { margin-top: 12px; }
+  .seg { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+  .seg button {
+    flex: 1 1 auto;
+    padding: 7px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: transparent;
+    color: var(--muted);
+    font: inherit; font-size: 12.5px; cursor: pointer;
+  }
+  .seg button.on { background: var(--panel); color: var(--accent); border-color: var(--accent); }
+
+  .result {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 18px;
+    margin-bottom: 20px;
+  }
+  .result .head {
+    display: flex; align-items: center; gap: 12px;
+    padding-bottom: 14px; margin-bottom: 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  .result h3 { margin: 0; font-size: 15.5px; font-weight: 620; word-break: break-all; }
+  .result .meta { color: var(--muted); font-size: 12.5px; margin-left: auto; white-space: nowrap; }
+
+  .views { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+  .view { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: #0d1324; }
+  .view .cap {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .7px;
+    color: var(--muted); padding: 7px 10px; border-bottom: 1px solid var(--line);
+  }
+  .view img { width: 100%; display: block; }
+  .view.water .cap { color: #6fb6ff; }
+
+  .stats { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+  .stat {
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 9px 13px;
+    min-width: 108px;
+  }
+  .stat .k { font-size: 10.5px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); }
+  .stat .v { font-size: 17px; font-weight: 650; margin-top: 2px; }
+  .stat.na .v { color: var(--muted); font-size: 13px; font-weight: 500; }
+  .stat.est { border-color: #6b4a1e; }
+  .stat.est .k { color: var(--warn); }
+
+  .downloads { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+  .downloads a {
+    font-size: 12.5px; color: var(--accent); text-decoration: none;
+    border: 1px solid var(--line); border-radius: 8px; padding: 6px 11px;
+  }
+  .downloads a:hover { border-color: var(--accent); }
+
+  .empty {
+    color: var(--muted); text-align: center; padding: 60px 20px;
+    border: 1px dashed var(--line); border-radius: 14px;
+  }
+
+  details.more { margin-top: 12px; }
+  details.more summary { cursor: pointer; color: var(--muted); font-size: 12.5px; }
+  table.inst { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12.5px; }
+  table.inst th, table.inst td {
+    text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line);
+  }
+  table.inst th { color: var(--muted); font-weight: 600; }
+
+  .banner {
+    background: #2a1f14; border: 1px solid #6b4a1e; color: var(--warn);
+    border-radius: 10px; padding: 10px 14px; font-size: 12.5px; margin-bottom: 16px;
+  }
+  .note { font-size: 11.5px; color: var(--muted); margin-top: 8px; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <h1>Remote Sensing Segmentation</h1>
+  <span class="sub">Upload aerial photos &rarr; buildings, water, areas and estimated heights</span>
+  <span class="pill" id="devicePill">connecting…</span>
+</header>
+
+<main>
+  <section>
+    <div class="card">
+      <h2>1 &middot; Images</h2>
+      <div id="dropzone">
+        <strong>Drop images here</strong>
+        <small>or click to browse &mdash; PNG / JPG / TIF</small>
+        <input id="fileInput" type="file" accept="image/*,.tif,.tiff" multiple hidden />
+      </div>
+      <div class="thumbs" id="thumbs"></div>
+
+      <h2 style="margin-top:22px">2 &middot; Settings</h2>
+
+      <label class="field">
+        <span>Model</span>
+        <select id="phase"></select>
+      </label>
+      <p class="hint" id="phaseHint">&nbsp;</p>
+
+      <label class="field">
+        <span>Threshold <b id="thresholdVal">0.50</b></span>
+        <input id="threshold" type="range" min="0.05" max="0.95" step="0.05" value="0.5" />
+      </label>
+
+      <label class="field">
+        <span>Ground sample distance (m / pixel)</span>
+        <input id="gsd" type="number" min="0" step="0.01" placeholder="0.30 — WHU aerial" />
+      </label>
+      <p class="hint">Needed for m&sup2; areas and for any height. WHU aerial is 0.30 m/px; LoveDA is 0.30 m/px.</p>
+
+      <label class="field">
+        <span>Min object area (m&sup2;)</span>
+        <input id="minArea" type="number" min="0" step="5" value="20" />
+      </label>
+
+      <details class="panel" id="heightPanel">
+        <summary>3 &middot; Building height (optional)</summary>
+        <div class="body">
+          <div class="seg" id="sunMode">
+            <button data-mode="off" class="on">Off</button>
+            <button data-mode="manual">Sun angle</button>
+            <button data-mode="computed">Time + place</button>
+          </div>
+
+          <div id="sunManual" style="display:none">
+            <div class="row2">
+              <label class="field">
+                <span>Sun elevation (&deg;)</span>
+                <input id="elev" type="number" min="0" max="90" step="0.5" placeholder="e.g. 35" />
+              </label>
+              <label class="field">
+                <span>Sun azimuth (&deg;)</span>
+                <input id="azim" type="number" min="0" max="360" step="1" placeholder="e.g. 160" />
+              </label>
+            </div>
+          </div>
+
+          <div id="sunComputed" style="display:none">
+            <div class="row2">
+              <label class="field">
+                <span>Latitude (&deg;)</span>
+                <input id="lat" type="number" step="0.0001" placeholder="e.g. 30.53" />
+              </label>
+              <label class="field">
+                <span>Longitude (&deg;)</span>
+                <input id="lon" type="number" step="0.0001" placeholder="e.g. 114.36" />
+              </label>
+            </div>
+            <label class="field">
+              <span>Capture time (UTC)</span>
+              <input id="when" type="datetime-local" />
+            </label>
+          </div>
+
+          <p class="note">
+            Height is estimated from shadow length, so it needs a GSD, sun position,
+            flat ground and north-up imagery. It is <b>not</b> survey grade — treat it
+            as a rough indicator, not a measurement.
+          </p>
+        </div>
+      </details>
+
+      <button class="primary" id="runBtn" disabled>Segment images</button>
+      <div id="status">Add at least one image.</div>
+    </div>
+  </section>
+
+  <section>
+    <div class="banner" id="scopeBanner" style="display:none"></div>
+    <div id="results">
+      <div class="empty">
+        Results appear here.<br />
+        Nothing is uploaded anywhere &mdash; everything runs on this machine.
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+const state = { files: [], phases: {}, diag: {}, health: null, busy: false, sunMode: "off" };
+const $ = (id) => document.getElementById(id);
+
+const fmt = (v, suffix = "", digits = 0) =>
+  (v === null || v === undefined || Number.isNaN(v))
+    ? "—"
+    : Number(v).toLocaleString(undefined, { maximumFractionDigits: digits }) + suffix;
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function readAsDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => resolve(fr.result);
+    fr.onerror = () => reject(fr.error);
+    fr.readAsDataURL(file);
+  });
+}
+
+function setStatus(msg, isError = false) {
+  const el = $("status");
+  el.textContent = msg;
+  el.className = isError ? "error" : "";
+}
+
+/* ── startup ─────────────────────────────────────────────────────────────── */
+async function init() {
+  try {
+    const health = await (await fetch("/health")).json();
+    state.health = health;
+    $("devicePill").textContent = health.device;
+    state.phases = health.phases || {};
+    state.diag = health.diagnostics || {};
+
+    // Prefill the GSD so a wrong value cannot silently scale every area.
+    if (health.gsd_m && !$("gsd").value) $("gsd").value = health.gsd_m;
+
+    const sel = $("phase");
+    sel.innerHTML = "";
+    const entries = Object.entries(state.phases);
+    if (!entries.length) {
+      sel.innerHTML = "<option>no checkpoint found</option>";
+      setStatus("No trained checkpoint available.", true);
+      return;
+    }
+    for (const [id, label] of entries) {
+      const o = document.createElement("option");
+      o.value = id;
+      o.textContent = label;
+      sel.appendChild(o);
+    }
+    // Prefer a healthy checkpoint that also has water, then any healthy one.
+    const healthy = (p) => !(state.diag[String(p)] || {}).degraded;
+    const order = [5, 4, 3, 2, 1];
+    const preferred = order.find((p) => state.phases[p] && healthy(p))
+      || order.find((p) => state.phases[p]);
+    sel.value = String(preferred);
+
+    const updateHint = () => {
+      const d = state.diag[sel.value] || {};
+      const cls = (health.classes || {})[sel.value === "5" ? "water" : "building"] || {};
+      if (d.degraded) {
+        $("phaseHint").innerHTML = '<span style="color:#ffcf8a">⚠ '
+          + escapeHtml(d.reason || "degraded checkpoint") + "</span>";
+      } else if (sel.value === "5") {
+        $("phaseHint").textContent = "Two heads: buildings + water (LoveDA, 0.3 m).";
+      } else {
+        $("phaseHint").textContent = "Buildings only — no water head in this checkpoint.";
+      }
+    };
+    updateHint();
+    sel.onchange = updateHint;
+
+    const water = (health.classes || {}).water || {};
+    const banner = $("scopeBanner");
+    if (!water.available) {
+      banner.style.display = "block";
+      banner.innerHTML = "Water is unavailable: " + escapeHtml(
+        water.reason || "no two-head checkpoint yet") +
+        ". Train it with <code>train_multihead.py</code>.";
+    }
+  } catch (err) {
+    $("devicePill").textContent = "server offline";
+    setStatus("Cannot reach the server: " + err.message, true);
+  }
+  refreshReady();
+}
+
+/* ── sun mode selector ───────────────────────────────────────────────────── */
+$("sunMode").addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-mode]");
+  if (!btn) return;
+  state.sunMode = btn.dataset.mode;
+  [...$("sunMode").children].forEach((b) => b.classList.toggle("on", b === btn));
+  $("sunManual").style.display = state.sunMode === "manual" ? "block" : "none";
+  $("sunComputed").style.display = state.sunMode === "computed" ? "block" : "none";
+});
+
+function collectSun() {
+  if (state.sunMode === "off") return { enabled: false };
+  if (state.sunMode === "manual") {
+    const el = Number($("elev").value);
+    const az = Number($("azim").value);
+    if ($("elev").value === "" || $("azim").value === "") {
+      throw new Error("enter both sun elevation and azimuth, or turn height off");
+    }
+    return { enabled: true, mode: "manual", elevation_deg: el, azimuth_deg: az };
+  }
+  const lat = $("lat").value, lon = $("lon").value, when = $("when").value;
+  if (!lat || !lon || !when) {
+    throw new Error("enter latitude, longitude and capture time, or turn height off");
+  }
+  return {
+    enabled: true, mode: "computed",
+    lat: Number(lat), lon: Number(lon),
+    when_utc: when.length === 16 ? when + ":00" : when,
+  };
+}
+
+/* ── file intake ─────────────────────────────────────────────────────────── */
+const dz = $("dropzone");
+const fileInput = $("fileInput");
+
+dz.addEventListener("click", () => fileInput.click());
+dz.addEventListener("dragover", (e) => { e.preventDefault(); dz.classList.add("hover"); });
+dz.addEventListener("dragleave", () => dz.classList.remove("hover"));
+dz.addEventListener("drop", (e) => {
+  e.preventDefault();
+  dz.classList.remove("hover");
+  addFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener("change", () => {
+  addFiles(fileInput.files);
+  fileInput.value = "";
+});
+
+function addFiles(fileList) {
+  for (const f of fileList) {
+    if (!/^image\//.test(f.type) && !/\.(tif|tiff)$/i.test(f.name)) continue;
+    if (state.files.some((x) => x.name === f.name && x.size === f.size)) continue;
+    state.files.push(f);
+  }
+  renderThumbs();
+  refreshReady();
+}
+
+function removeFile(i) {
+  state.files.splice(i, 1);
+  renderThumbs();
+  refreshReady();
+}
+
+function renderThumbs() {
+  const box = $("thumbs");
+  box.innerHTML = "";
+  state.files.forEach((f, i) => {
+    const d = document.createElement("div");
+    d.className = "thumb";
+    const img = document.createElement("img");
+    img.alt = f.name;
+    const url = URL.createObjectURL(f);
+    img.src = url;
+    img.onload = () => URL.revokeObjectURL(url);
+    if (/\.(tif|tiff)$/i.test(f.name)) img.style.opacity = ".35";
+    const nm = document.createElement("div");
+    nm.className = "nm";
+    nm.textContent = f.name;
+    const btn = document.createElement("button");
+    btn.textContent = "×";
+    btn.title = "Remove";
+    btn.onclick = (e) => { e.stopPropagation(); removeFile(i); };
+    d.append(img, nm, btn);
+    box.appendChild(d);
+  });
+}
+
+function refreshReady() {
+  const ready = state.files.length > 0 && !state.busy;
+  $("runBtn").disabled = !ready;
+  if (state.busy) return;
+  setStatus(state.files.length
+    ? `${state.files.length} image${state.files.length > 1 ? "s" : ""} ready.`
+    : "Add at least one image.");
+}
+
+$("threshold").addEventListener("input", (e) => {
+  $("thresholdVal").textContent = Number(e.target.value).toFixed(2);
+});
+
+/* ── run ─────────────────────────────────────────────────────────────────── */
+$("runBtn").addEventListener("click", async () => {
+  if (state.busy || !state.files.length) return;
+
+  let sun;
+  try {
+    sun = collectSun();
+  } catch (err) {
+    setStatus(err.message, true);
+    return;
+  }
+
+  state.busy = true;
+  $("runBtn").disabled = true;
+  $("runBtn").textContent = "Segmenting…";
+  setStatus("Running the model — large images take a few seconds each.");
+
+  const gallery = $("results");
+  gallery.innerHTML = "";
+
+  try {
+    const images = [];
+    for (const f of state.files) {
+      images.push({ name: f.name, data: await readAsDataURL(f) });
+    }
+    const payload = {
+      phase: Number($("phase").value),
+      threshold: Number($("threshold").value),
+      gsd_m: $("gsd").value || null,
+      min_area_m2: Number($("minArea").value) || 20,
+      sun,
+      images,
+    };
+    const res = await fetch("/api/segment", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || res.statusText);
+
+    renderResults(data);
+    setStatus(`Done — ${data.results.length} image(s) processed on ${data.device}.`);
+  } catch (err) {
+    setStatus("Failed: " + err.message, true);
+    gallery.innerHTML = `<div class="empty">No results. ${escapeHtml(err.message)}</div>`;
+  } finally {
+    state.busy = false;
+    $("runBtn").textContent = "Segment images";
+    refreshReady();
+  }
+});
+
+function statCard(key, value, cls = "") {
+  return `<div class="stat ${cls}"><div class="k">${key}</div><div class="v">${value}</div></div>`;
+}
+
+function renderResults(data) {
+  const gallery = $("results");
+  gallery.innerHTML = "";
+
+  for (const r of data.results) {
+    const s = r.stats;
+    const el = document.createElement("article");
+    el.className = "result";
+
+    const instRows = r.instance_list.slice(0, 40).map((inst) => `
+      <tr>
+        <td>${inst.id}</td>
+        <td>${fmt(inst.area_px)} px</td>
+        <td>${inst.area_m2 !== null ? fmt(inst.area_m2, " m²", 1) : "—"}</td>
+        <td>${inst.mean_conf.toFixed(3)}</td>
+        <td>${inst.height_m !== undefined && inst.height_m !== null
+              ? fmt(inst.height_m, " m", 1) : "—"}</td>
+      </tr>`).join("");
+
+    const water = s.classes.water || {};
+    const height = s.height || {};
+    const heightOk = height.usable;
+
+    const views = [`<div class="view"><div class="cap">Overlay</div>
+        <a href="${r.overlay}" target="_blank"><img src="${r.overlay}" alt="overlay" /></a></div>`];
+    if (r.masks.building) {
+      views.push(`<div class="view"><div class="cap">Building mask</div>
+        <a href="${r.masks.building}" target="_blank"><img src="${r.masks.building}" alt="building mask" /></a></div>`);
+    }
+    if (r.masks.water) {
+      views.push(`<div class="view water"><div class="cap">Water mask</div>
+        <a href="${r.masks.water}" target="_blank"><img src="${r.masks.water}" alt="water mask" /></a></div>`);
+    }
+
+    const waterCard = water.available
+      ? statCard("Water", fmt(water.coverage_pct, " %", 2))
+      : statCard("Water", "no water head", "na");
+
+    const heightCards = heightOk
+      ? statCard("Mean height", fmt(height.mean_height_m, " m", 1), "est")
+        + statCard("Max height", fmt(height.max_height_m, " m", 1), "est")
+        + statCard("Volume", fmt(height.volume_m3, " m³", 0), "est")
+      : statCard("Height", "off / unusable", "na");
+
+    const heightNote = heightOk
+      ? `<p class="note">Height = shadow length × GSD × tan(${height.sun_elevation_deg}°)
+         — an estimate assuming flat ground and north-up imagery, not a survey.</p>`
+      : (height.reason ? `<p class="note">Height not reported: ${escapeHtml(height.reason)}</p>` : "");
+
+    el.innerHTML = `
+      <div class="head">
+        <h3>${escapeHtml(r.name)}</h3>
+        <span class="meta">${s.width} × ${s.height_px} px &middot; ${s.seconds}s</span>
+      </div>
+
+      <div class="views">${views.join("")}</div>
+
+      <div class="stats">
+        ${statCard("Buildings", fmt(s.instances))}
+        ${statCard("Building cover", fmt(s.coverage_pct, " %", 2))}
+        ${statCard("Roof area", s.total_area_m2 !== null ? fmt(s.total_area_m2, " m²", 0) : "set GSD",
+                   s.total_area_m2 === null ? "na" : "")}
+        ${waterCard}
+        ${heightCards}
+        ${statCard("Mean conf.", s.mean_confidence ? s.mean_confidence.toFixed(3) : "—")}
+      </div>
+      ${heightNote}
+
+      <details class="more">
+        <summary>Per-building table (${r.instance_list.length} detected, showing 40)</summary>
+        <table class="inst">
+          <thead><tr><th>#</th><th>Area</th><th>Area (m²)</th><th>Confidence</th><th>Height</th></tr></thead>
+          <tbody>${instRows}</tbody>
+        </table>
+      </details>
+
+      <div class="downloads">
+        <a href="${r.overlay}" download>Overlay PNG</a>
+        ${r.masks.building ? `<a href="${r.masks.building}" download>Building mask</a>` : ""}
+        ${r.masks.water ? `<a href="${r.masks.water}" download>Water mask</a>` : ""}
+        <a href="/outputs/${data.run}/summary.csv" download>Summary CSV</a>
+      </div>
+    `;
+    gallery.appendChild(el);
+  }
+}
+
+init();
+</script>
+</body>
+</html>
